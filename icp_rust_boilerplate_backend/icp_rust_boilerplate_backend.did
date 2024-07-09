@@ -1,0 +1,89 @@
+type Error = variant { NotFound : record { msg : text } };
+type LocationProof = record {
+  verifier : text;
+  location_data : text;
+  timestamp : nat64;
+};
+type Order = record {
+  id : nat64;
+  delivery_date : opt nat64;
+  product_id : nat64;
+  order_date : nat64;
+  quantity : nat32;
+};
+type OrderPayload = record {
+  delivery_date : opt nat64;
+  product_id : nat64;
+  order_date : nat64;
+  quantity : nat32;
+};
+type Product = record {
+  id : nat64;
+  name : text;
+  description : text;
+  quantity : nat32;
+  price : float64;
+};
+type ProductPayload = record {
+  name : text;
+  description : text;
+  quantity : nat32;
+  price : float64;
+};
+type Result = variant { Ok : Order; Err : text };
+type Result_1 = variant { Ok : Product; Err : text };
+type Result_2 = variant { Ok : Shipment; Err : text };
+type Result_3 = variant { Ok : User; Err : text };
+type Result_4 = variant { Ok : vec LocationProof; Err : Error };
+type Result_5 = variant { Ok : ShipmentStatus; Err : Error };
+type Result_6 = variant { Ok : Shipment; Err : Error };
+type Shipment = record {
+  id : nat64;
+  status : ShipmentStatus;
+  updated_at : opt nat64;
+  shipping_details : text;
+  created_at : nat64;
+  location_proofs : vec LocationProof;
+  order_id : nat64;
+};
+type ShipmentPayload = record {
+  expected_arrival_date : nat64;
+  shipping_details : text;
+  shipped_date : nat64;
+  order_id : nat64;
+};
+type ShipmentStatus = variant {
+  InTransit;
+  Delivered;
+  Shipped;
+  Canceled;
+  Pending;
+};
+type User = record {
+  id : nat64;
+  username : text;
+  role : UserRole;
+  email : text;
+};
+type UserPayload = record { username : text; role : UserRole; email : text };
+type UserRole = variant { Customer; Supplier; Admin };
+service : {
+  add_order : (OrderPayload) -> (Result);
+  add_product : (ProductPayload) -> (Result_1);
+  add_shipment : (ShipmentPayload) -> (Result_2);
+  add_user : (UserPayload) -> (Result_3);
+  delete_order : (nat64) -> (Result);
+  delete_product : (nat64) -> (Result_1);
+  delete_shipment : (nat64) -> (Result_2);
+  delete_user : (nat64) -> (Result_3);
+  get_order : (nat64) -> (Result) query;
+  get_product : (nat64) -> (Result_1) query;
+  get_shipment : (nat64) -> (Result_2) query;
+  get_shipment_location_proofs : (nat64) -> (Result_4) query;
+  get_shipment_status : (nat64) -> (Result_5) query;
+  get_user : (nat64) -> (Result_3) query;
+  update_order : (nat64, OrderPayload) -> (Result);
+  update_product : (nat64, ProductPayload) -> (Result_1);
+  update_shipment_status : (nat64, ShipmentStatus, LocationProof) -> (Result_6);
+  update_user : (nat64, UserPayload) -> (Result_3);
+}
