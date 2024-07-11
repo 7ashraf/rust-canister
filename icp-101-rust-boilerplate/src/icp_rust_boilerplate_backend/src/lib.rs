@@ -6,52 +6,58 @@ use ic_stable_structures::memory_manager::{MemoryId, MemoryManager, VirtualMemor
 use ic_stable_structures::{BoundedStorable, Cell, DefaultMemoryImpl, StableBTreeMap, Storable};
 use std::{borrow::Cow, cell::RefCell};
 
-
+/* Defining Memory state and IdCell */
 type Memory = VirtualMemory<DefaultMemoryImpl>;
 type IdCell = Cell<u64, Memory>;
 
+/* Defining the Product struct */
 #[derive(candid::CandidType, Clone, Serialize, Deserialize, Default)]
 struct Product {
-    id: u64,
-    name: String,
-    description: String,
-    price: f64,
-    quantity: u32,
+    id: u64, // the id for the product
+    name: String, // the product name
+    description: String, // the product description
+    price: f64, // the product price
+    quantity: u32, // the product quantity
 }
 
+/* Defining the Supplier struct */
 #[derive(candid::CandidType, Clone, Serialize, Deserialize, Default)]
 struct Supplier {
-    id: u64,
-    name: String,
-    contact_info: String,
+    id: u64, // the id for the supplier
+    name: String, // the supplier name
+    contact_info: String, // the supplier contact information
 }
 
+/* Defining the Order struct */
 #[derive(candid::CandidType, Clone, Serialize, Deserialize, Default)]
 struct Order {
-    id: u64,
-    product_id: u64,
-    quantity: u32,
-    order_date: u64,
-    delivery_date: Option<u64>,
+    id: u64, // the id for the order
+    product_id: u64, // the id of the product ordered
+    quantity: u32, // the quantity of the product ordered
+    order_date: u64, // the date of the order
+    delivery_date: Option<u64>, // the optional delivery date
 }
 
+/* Defining the Shipment struct */
 #[derive(candid::CandidType, Clone, Serialize, Deserialize, Default)]
 struct Shipment {
-    id: u64,
-    order_id: u64,
-    shipping_details: String,
-    status: ShipmentStatus,
-    created_at: u64,
-    updated_at: Option<u64>,
-    location_proofs: Vec<LocationProof>,
+    id: u64, // the id for the shipment
+    order_id: u64, // the id of the order being shipped
+    shipping_details: String, // details of the shipping
+    status: ShipmentStatus, // status of the shipment
+    created_at: u64, // the creation timestamp of the shipment
+    updated_at: Option<u64>, // optional update timestamp of the shipment
+    location_proofs: Vec<LocationProof>, // location proofs of the shipment
 }
 
+/* Defining the LocationProof struct */
 #[derive(candid::CandidType, Clone, Serialize, Deserialize, Default, Debug)]
 struct LocationProof {
-    timestamp: u64,
-    location_data: String,
-    verifier: String,
+    timestamp: u64, // the timestamp of the location proof
+    location_data: String, // the location data
+    verifier: String, // the verifier of the location data
 }
+
 
 impl Storable for Product {
     fn to_bytes(&self) -> Cow<[u8]> {
@@ -180,19 +186,22 @@ thread_local! {
             MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(9)))
     ));
 }
+/* Defining the User struct */
 #[derive(candid::CandidType, Clone, Serialize, Deserialize, Default)]
 struct User {
-    id: u64,
-    username: String,
-    email: String,
-    role: UserRole,
+    id: u64, // the id for the user
+    username: String, // the username
+    email: String, // the email of the user
+    role: UserRole, // the role of the user
 }
+
+/* Defining the UserRole enum */
 #[derive(Clone)]
 #[derive(candid::CandidType, Deserialize, Serialize)]
 enum UserRole {
-    Admin,
-    Supplier,
-    Customer,
+    Admin, // admin role
+    Supplier, // supplier role
+    Customer, // customer role
 }
 
 impl Default for UserRole {
@@ -261,21 +270,37 @@ struct UserPayload {
     role: UserRole,
 }
 
+/* Function to create a user */
 #[ic_cdk::update]
-fn add_user(payload: UserPayload) -> Result<User, String> {
-    let id = USER_ID_COUNTER
-        .with(|counter| {
-            let current_value = *counter.borrow().get();
-            counter.borrow_mut().set(current_value + 1).expect("Cannot increment user ID counter")
+fn user_create(payload: UserPayload) -> Result<User, Error> {
+    /* Validate input payload */
+    if payload.username.is_empty() {
+        return Err(Error::InvalidInput {
+            msg: "Username cannot be empty".to_string(),
         });
-    let user = User {
-        id,
-        username: payload.username,
-        email: payload.email,
-        role: payload.role,
-    };
-    do_insert_user(&user);
-    Ok(user)
+    }
+    if payload.email.is_empty() {
+        return Err(Error::InvalidInput {
+            msg: "Email cannot be empty".to_string(),
+        });
+    }
+
+    USER_ID_COUNTER.with(|counter| {
+        let id = counter.borrow_mut().get();
+        let user = User {
+            id,
+            username: payload.username,
+            email: payload.email,
+            role: payload.role,
+        };
+
+        USER_STORAGE.with(|user_storage| {
+            user_storage.borrow_mut().insert(id, user.clone());
+        });
+
+        counter.borrow_mut().set(id + 1);
+        Ok(user)
+    })
 }
 
 fn do_insert_user(user: &User) {
@@ -304,10 +329,11 @@ fn delete_user(id: u64) -> Result<User, String> {
     }
 }
 
-
-#[derive(candid::CandidType, Deserialize, Serialize)]
+/* Defining the Error enum */
+#[derive(candid::CandidType, Debug, Serialize, Deserialize)]
 enum Error {
-    NotFound { msg: String },
+    InvalidInput { msg: String }, // invalid input error
+    NotFound { msg: String }, // not found error
 }
 
 #[ic_cdk::query]
@@ -323,9 +349,28 @@ fn _get_product(id: &u64) -> Option<Product> {
 }
 
 
+/* Function to create a product */
 
 #[ic_cdk::update]
 fn add_product(payload: ProductPayload) -> Result<Product, String> {
+
+* Validate input payload */
+    if payload.name.is_empty() {
+        return Err(Error::InvalidInput {
+            msg: "Product name cannot be empty".to_string(),
+        });
+    }
+    if payload.price <= 0.0 {
+        return Err(Error::InvalidInput {
+            msg: "Product price must be positive".to_string(),
+        });
+    }
+    if payload.quantity <= 0 {
+        return Err(Error::InvalidInput {
+            msg: "Product quantity must be positive".to_string(),
+        });
+    }
+
     let id = PRODUCT_ID_COUNTER
         .with(|counter| {
             let current_value = *counter.borrow().get();
@@ -378,9 +423,17 @@ fn _get_order(id: &u64) -> Option<Order> {
     ORDER_STORAGE.with(|s| s.borrow().get(id))
 }
 
-
+/* Function to create an order */
 #[ic_cdk::update]
 fn add_order(payload: OrderPayload) -> Result<Order, String> {
+
+    /* Validate input payload */
+    if payload.quantity <= 0 {
+        return Err(Error::InvalidInput {
+            msg: "Order quantity must be positive".to_string(),
+        });
+    }
+
     let id = ORDER_ID_COUNTER
         .with(|counter| {
             let current_value = *counter.borrow().get();
@@ -433,9 +486,16 @@ fn _get_shipment(id: &u64) -> Option<Shipment> {
     SHIPMENT_STORAGE.with(|s| s.borrow().get(id))
 }
 
-
+/* Function to create a shipment */
 #[ic_cdk::update]
 fn add_shipment(payload: ShipmentPayload) -> Result<Shipment, String> {
+* Validate input payload */
+    if payload.shipping_details.is_empty() {
+        return Err(Error::InvalidInput {
+            msg: "Shipping details cannot be empty".to_string(),
+        });
+    }
+
     let id = SHIPMENT_ID_COUNTER
         .with(|counter| {
             let current_value = *counter.borrow().get();
